@@ -1,18 +1,123 @@
 #include <Arduino.h>
 #include <Adafruit_RGBLCDShield.h>
 #include <string.h>
+#include <math.h>
 
 constexpr double VREF = 5;
 
 Adafruit_RGBLCDShield lcd;
 
-struct PinVoltage {
-   double min = INFINITY;
-   double max = 0;
-   double now = 0;
+void printDouble(double value, int width, int maxDecimal = -1) {
+   if(maxDecimal < 0) maxDecimal = width - 1;
+
+   int wholeDigits = int(log10(abs(value))) + 1;
+   if(value < 0) wholeDigits += 1;
+
+   char buff[17];
+   lcd.print(dtostrf(value, width, constrain(abs(width) - wholeDigits - 1, 0, maxDecimal), buff));
+}
+
+struct Voltage {
+   double min;
+   double max;
+   double now;
+
+   Voltage() {
+      reset();
+   }
+
+   void reset() {
+      min = INFINITY;
+      max = 0;
+      now = 0;
+   }
+
+   void update(double volt) {
+      now = volt;
+      if(now > max)
+         max = now;
+      if(now < min)
+         min = now;
+   }
+};
+
+struct PinVoltage : Voltage {
    int pin;
 
    PinVoltage(int _pin): pin(_pin) {}
+
+   void update() {
+      double volt = (analogRead(pin) + 0.5) / 1024 * VREF;
+      Voltage::update(volt);
+   }
+};
+
+struct Page {
+   Page *up = nullptr, *down = nullptr, *left = nullptr, *right = nullptr;
+   virtual void draw() = 0;
+};
+
+struct OnePage : Page {
+   char line[17] = {0};
+   const double *value;
+
+   OnePage(const char *_line, const double *_value) : value(_value) {
+      sprintf(line, "%-16.16s", _line);
+   }
+
+   void draw() {
+      lcd.setCursor(0, 0);
+      lcd.print(line);
+      lcd.setCursor(0, 1);
+      printDouble(*value, -16, 4);
+   }
+};
+
+struct TwoPage : Page {
+   char lines[2][9] = {0};
+   const double *values[2];
+
+   TwoPage(const char *line0, const double *value0, const char *line1, const double *value1) {
+      sprintf(lines[0], "%-8.8s", line0);
+      sprintf(lines[1], "%-8.8s", line1);
+      values[0] = value0;
+      values[1] = value1;
+   }
+
+   void draw() {
+      for(size_t i = 0; i < 2; i++) {
+         lcd.setCursor(0, i);
+         lcd.print(lines[i]);
+         printDouble(*values[i], 8, 4);
+      }
+   }
+};
+
+struct ThreePage : Page {
+   char lines0[2][9] = {0};
+   char lines1[9] = {0};
+   const double *values[3];
+
+   ThreePage(const char *line0, const double *value0, const char *line1, const double *value1, const char *line2, const double *value2) {
+      sprintf(lines0[0], "%-3.3s", line0);
+      sprintf(lines0[1], "%-3.3s", line1);
+      sprintf(lines1, "%-8.8s", line2);
+      values[0] = value0;
+      values[1] = value1;
+      values[2] = value2;
+   }
+
+   void draw() {
+      lcd.setCursor(0, 0);
+      for(size_t i = 0; i < 2; i++) {
+         lcd.print(lines0[i]);
+         printDouble(*values[i], 5);
+      }
+
+      lcd.setCursor(0, 1);
+      lcd.print(lines1);
+      printDouble(*values[2], 8, 4);
+   }
 };
 
 constexpr size_t numPins = 8;
@@ -27,54 +132,9 @@ PinVoltage pinVolts[numPins] = {
    { A15 },
 };
 
-constexpr int8_t Page_col = 2;
-enum Page {
-   ALARM = -1,
-
-   MAIN,    MAIN_MINMAX,
-   CELL0,   CELL0_MINMAX,
-   CELL1,   CELL1_MINMAX,
-   CELL2,   CELL2_MINMAX,
-   CELL3,   CELL3_MINMAX,
-   MINMAX,  CELL4_MINMAX,
-   MISC0,   MISC1,
-
-   Page_len
-};
-
-double readVoltage(int pin) {
-   return (analogRead(pin) + 0.5) / 1024 * VREF;
-}
-
-void updateVolts() {
-   for(size_t i = 0; i < numPins; i++) {
-      double volt = readVoltage(pinVolts[i].pin);
-      pinVolts[i].now = volt;
-      if(volt > pinVolts[i].max)
-         pinVolts[i].max = volt;
-      if(volt < pinVolts[i].min)
-         pinVolts[i].min = volt;
-   }
-}
-
-// Functions to switch pages. Using some (confusing) math so I don't need to write lots of if elses
-Page downPage(Page page) {
-   return Page((int(page) + Page_col) % int(Page_len));
-}
-
-Page upPage(Page page) {
-   return Page((int(page) - Page_col + int(Page_len)) % int(Page_len));
-}
-
-Page rightPage(Page page) {
-   int pageNum = int(page);
-   return Page(pageNum / Page_col * Page_col + (pageNum + 1) % Page_col);
-}
-
-Page leftPage(Page page) {
-   int pageNum = int(page);
-   return Page(pageNum / Page_col * Page_col + (pageNum - 1) % Page_col);
-}
+Page *page;
+Voltage totalVolt;
+Voltage variation;
 
 void setup() {
    // NOTE: Call this before any analogRead calls or else VREF pin and internal voltage reference will short
@@ -85,62 +145,102 @@ void setup() {
 
    // Stablize the input
    for(int i = 0; i < 10; i++) {
-      updateVolts();
+      for(size_t i = 0; i < numPins; i++) {
+         pinVolts[i].update();
+      }
    }
+
+   // Setup menu pages
+   Page *mainPage = new TwoPage("TOTAL", &totalVolt.now, "VAR", &variation.now);
+   Page *mainMinMax = new TwoPage("MAX", &totalVolt.max, "MIN", &totalVolt.min);
+   Page *varMinMax = new OnePage("MAX   VAR", &variation.max);
+
+   mainPage->right = mainMinMax;
+   mainMinMax->right = varMinMax;
+   varMinMax->right = mainPage;
+
+   varMinMax->left = mainMinMax;
+   mainMinMax->left = mainPage;
+   mainPage->left = varMinMax;
+
+   Page *cellPage = mainPage;
+   for(size_t i = 0; i < numPins; i += 2) {
+      char line0[6] = {0};
+      char line1[6] = {0};
+
+      sprintf(line0, "CELL%d", i+1);
+      sprintf(line1, "CELL%d", i+2);
+      Page *page = new TwoPage(line0, &pinVolts[i].now, line1, &pinVolts[i+1].now);
+
+      sprintf(line0, "MAX%d", i+1);
+      sprintf(line1, "MAX%d", i+2);
+      Page *max = new TwoPage(line0, &pinVolts[i].max, line1, &pinVolts[i+1].max);
+
+      sprintf(line0, "MIN%d", i+1);
+      sprintf(line1, "MIN%d", i+2);
+      Page *min = new TwoPage(line0, &pinVolts[i].min, line1, &pinVolts[i+1].min);
+
+      page->right = max;
+      max->right = min;
+      min->right = page;
+
+      page->left = min;
+      min->left = max;
+      max->left = page;
+
+      if(i == 0) {
+         mainPage->down = mainMinMax->down = varMinMax->down = page;
+         page->up = max->up = min->up = mainPage;
+      } else {
+         cellPage->down = page;
+         cellPage->left->down = min;
+         cellPage->right->down = max;
+
+         page->up = cellPage;
+         max->up = cellPage->right;
+         min->up = cellPage->left;
+      }
+
+      cellPage = page;
+   }
+
+   page = mainPage;
 }
 
 void loop() {
-   static Page page = MAIN;
-
-   updateVolts();
-
-   // Calculate these every loop so they can be used in alarm
-   double minVolt = INFINITY;
-   double maxVolt = 0;
-   double totalVolts = 0;
+   double total = 0;
+   Voltage tally;
 
    for(size_t i = 0; i < numPins; i++) {
-      double volt = pinVolts[i].now;
-      totalVolts += volt;
-      if(volt < minVolt)
-         minVolt = volt;
-      if(volt > maxVolt)
-         maxVolt = volt;
+      pinVolts[i].update();
+      total += pinVolts[i].now;
+      tally.update(pinVolts[i].now);
    }
 
-   static double minTotal = INFINITY;
-   static double maxTotal = 0;
-   if(totalVolts < minTotal)
-      minTotal = totalVolts;
-   if(totalVolts > maxTotal)
-      maxTotal = totalVolts;
-
-   static double maxVary = 0;
-   double vary = maxVolt - minVolt;
-   if(vary > maxVary)
-      maxVary = vary;
+   totalVolt.update(total);
+   variation.update(tally.max - tally.min);
 
    // Buttons
    static long lastPrint = 0;
 
-   // Lazy debouncing
+   // Lazy debouncing, returns non-zero when button is first become pressed, zero afterwards
    #define DEBOUNCE(btn) (buttons & (btn) && ~debounce & (btn))
    static uint8_t debounce = 0;
 
    uint8_t buttons = lcd.readButtons();
 
-   if(DEBOUNCE(BUTTON_DOWN))
-      page = downPage(page);
-
-   if(DEBOUNCE(BUTTON_UP))
-      page = upPage(page);
-
-   if(DEBOUNCE(BUTTON_LEFT))
-      page = leftPage(page);
-
-   if(DEBOUNCE(BUTTON_RIGHT))
-      page = rightPage(page);
-
+   if(DEBOUNCE(BUTTON_DOWN) && page->down)
+      page = page->down;
+   
+   if(DEBOUNCE(BUTTON_UP) && page->up)
+      page = page->up;
+   
+   if(DEBOUNCE(BUTTON_LEFT) && page->left)
+      page = page->left;
+   
+   if(DEBOUNCE(BUTTON_RIGHT) && page->right)
+      page = page->right;
+   
    if(buttons ^ debounce)
       lastPrint = 0;
 
@@ -150,74 +250,6 @@ void loop() {
    long now = millis();
    if(now - lastPrint > 1000) {
       lastPrint = now;
-
-      char buff[17];
-
-      switch(page) {
-         case ALARM:
-            break;
-
-         case MAIN:
-            lcd.setCursor(0, 0);
-            lcd.print("TOTAL   ");
-            lcd.print(dtostrf(totalVolts, 8, 4, buff));
-
-            lcd.setCursor(0, 1);
-            lcd.print("VAR     ");
-            lcd.print(dtostrf(vary, 8, 4, buff));
-            break;
-
-         case MAIN_MINMAX:
-            lcd.setCursor(0, 0);
-            lcd.print("MAX     ");
-            lcd.print(dtostrf(maxTotal, 8, 4, buff));
-
-            lcd.setCursor(0, 1);
-            lcd.print("MIN     ");
-            lcd.print(dtostrf(minTotal, 8, 4, buff));
-            break;
-
-         case CELL0:
-         case CELL1:
-         case CELL2:
-         case CELL3:
-            {
-               int cell = int(page) - int(CELL0);
-               for(int i = 0; i < 2; i++) {
-                  lcd.setCursor(0, i);
-                  lcd.print("CELL"); lcd.print(cell + i);
-                  lcd.print("   ");
-                  lcd.print(dtostrf(pinVolts[cell + i].now, 8, 4, buff));
-               }
-               break;
-            }
-
-         case CELL0_MINMAX:
-         case CELL1_MINMAX:
-         case CELL2_MINMAX:
-         case CELL3_MINMAX:
-            {
-               int cell = int(page) - int(CELL0);
-               for(int i = 0; i < 2; i++) {
-                  lcd.setCursor(0, i);
-                  lcd.print("X"); lcd.print(cell + i);
-                  lcd.print(" ");
-                  lcd.print(dtostrf(pinVolts[cell + i].max, 4, 2, buff));
-
-                  lcd.print("  N"); lcd.print(cell + i);
-                  lcd.print(" ");
-                  lcd.print(dtostrf(pinVolts[cell + i].min, 4, 2, buff));
-               }
-               break;
-            }
-
-         default:
-            lcd.setCursor(0, 0);
-            sprintf(buff, "PAGE:         %02d", page);
-            lcd.print(buff);
-            lcd.setCursor(0, 1);
-            lcd.print("                ");
-            break;
-      }
+      page->draw();
    }
 }
