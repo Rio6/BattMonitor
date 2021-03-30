@@ -69,7 +69,7 @@ struct OnePage : Page {
       lcd.setCursor(0, 0);
       lcd.print(line);
       lcd.setCursor(0, 1);
-      printDouble(*value, -16, 4);
+      printDouble(*value, 16, 4);
    }
 };
 
@@ -153,7 +153,7 @@ void setup() {
    // Setup menu pages
    Page *mainPage = new TwoPage("TOTAL", &totalVolt.now, "VAR", &variation.now);
    Page *mainMinMax = new TwoPage("MAX", &totalVolt.max, "MIN", &totalVolt.min);
-   Page *varMinMax = new OnePage("MAX   VAR", &variation.max);
+   Page *varMinMax = new OnePage("         MAX VAR", &variation.max);
 
    mainPage->right = mainMinMax;
    mainMinMax->right = varMinMax;
