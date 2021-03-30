@@ -52,32 +52,60 @@ struct PinVoltage : Voltage {
    }
 };
 
+struct CellValue {
+   size_t cell;
+   double value;
+
+   void set(size_t _cell, double _value) {
+      cell = _cell;
+      value = _value;
+   }
+};
+
+struct Variation {
+   CellValue minNow, maxNow;
+   CellValue minMax, maxMax;
+
+   double now, max = 0;
+
+   Variation() {
+      start();
+   }
+
+   void start() {
+      minNow.set(0, INFINITY);
+      maxNow.set(0, 0);
+   }
+
+   void update(size_t cell, double volt) {
+      if(volt < minNow.value) {
+         minNow.set(cell, volt);
+      }
+      if(volt > maxNow.value) {
+         maxNow.set(cell, volt);
+      }
+   }
+
+   void finish() {
+      now = maxNow.value - minNow.value;
+      if(now > max) {
+         max = now;
+         minMax = minNow;
+         maxMax = maxNow;
+      }
+   }
+};
+
 struct Page {
    Page *up = nullptr, *down = nullptr, *left = nullptr, *right = nullptr;
    virtual void draw() = 0;
 };
 
-struct OnePage : Page {
-   char line[17] = {0};
-   const double *value;
-
-   OnePage(const char *_line, const double *_value) : value(_value) {
-      sprintf(line, "%-16.16s", _line);
-   }
-
-   void draw() {
-      lcd.setCursor(0, 0);
-      lcd.print(line);
-      lcd.setCursor(0, 1);
-      printDouble(*value, 16, 4);
-   }
-};
-
-struct TwoPage : Page {
+struct NormalPage : Page {
    char lines[2][9] = {0};
    const double *values[2];
 
-   TwoPage(const char *line0, const double *value0, const char *line1, const double *value1) {
+   NormalPage(const char *line0, const double *value0, const char *line1, const double *value1) {
       sprintf(lines[0], "%-8.8s", line0);
       sprintf(lines[1], "%-8.8s", line1);
       values[0] = value0;
@@ -93,30 +121,36 @@ struct TwoPage : Page {
    }
 };
 
-struct ThreePage : Page {
-   char lines0[2][9] = {0};
-   char lines1[9] = {0};
-   const double *values[3];
+struct VariationPage : Page {
+   Variation *var;
+   bool showMax;
 
-   ThreePage(const char *line0, const double *value0, const char *line1, const double *value1, const char *line2, const double *value2) {
-      sprintf(lines0[0], "%-3.3s", line0);
-      sprintf(lines0[1], "%-3.3s", line1);
-      sprintf(lines1, "%-8.8s", line2);
-      values[0] = value0;
-      values[1] = value1;
-      values[2] = value2;
-   }
+   VariationPage(Variation *_var, bool _showMax) : var(_var), showMax(_showMax) {}
 
    void draw() {
+      const CellValue &max = showMax ? var->maxMax : var->maxNow;
+      const CellValue &min = showMax ? var->minMax : var->minNow;
+
       lcd.setCursor(0, 0);
-      for(size_t i = 0; i < 2; i++) {
-         lcd.print(lines0[i]);
-         printDouble(*values[i], 5);
+
+      if(showMax) {
+         lcd.print("MCV     ");
+      } else {
+         lcd.print("VAR     ");
       }
 
+      printDouble(max.value - min.value, 8, 4);
+
       lcd.setCursor(0, 1);
-      lcd.print(lines1);
-      printDouble(*values[2], 8, 4);
+
+      char buff[3];
+      sprintf(buff, "C%d  ", min.cell+1);
+      lcd.print(buff);
+      printDouble(min.value, 4);
+
+      sprintf(buff, " C%d ", max.cell+1);
+      lcd.print(buff);
+      printDouble(max.value, 4);
    }
 };
 
@@ -134,7 +168,7 @@ PinVoltage pinVolts[numPins] = {
 
 Page *page;
 Voltage totalVolt;
-Voltage variation;
+Variation variation;
 
 void setup() {
    // NOTE: Call this before any analogRead calls or else VREF pin and internal voltage reference will short
@@ -151,17 +185,23 @@ void setup() {
    }
 
    // Setup menu pages
-   Page *mainPage = new TwoPage("TOTAL", &totalVolt.now, "VAR", &variation.now);
-   Page *mainMinMax = new TwoPage("MAX", &totalVolt.max, "MIN", &totalVolt.min);
-   Page *varMinMax = new OnePage("         MAX VAR", &variation.max);
+   Page *varPage = new VariationPage(&variation, false);
+   Page *varMinMax = new VariationPage(&variation, true);
 
-   mainPage->right = mainMinMax;
-   mainMinMax->right = varMinMax;
-   varMinMax->right = mainPage;
+   varPage->right = varPage->left = varMinMax;
+   varMinMax->right = varMinMax->left = varPage;
 
-   varMinMax->left = mainMinMax;
-   mainMinMax->left = mainPage;
-   mainPage->left = varMinMax;
+   Page *mainPage = new NormalPage("TOTAL", &totalVolt.now, "VAR", &variation.now);
+   Page *mainMinMax = new NormalPage("MAX", &totalVolt.max, "MIN", &totalVolt.min);
+
+   mainPage->right = mainPage->left = mainMinMax;
+   mainMinMax->right = mainMinMax->left = mainPage;
+
+   varPage->down = mainPage;
+   varMinMax->down = mainMinMax;
+
+   mainPage->up = varPage;
+   mainMinMax->up = varMinMax;
 
    Page *cellPage = mainPage;
    for(size_t i = 0; i < numPins; i += 2) {
@@ -170,15 +210,15 @@ void setup() {
 
       sprintf(line0, "CELL%d", i+1);
       sprintf(line1, "CELL%d", i+2);
-      Page *page = new TwoPage(line0, &pinVolts[i].now, line1, &pinVolts[i+1].now);
+      Page *page = new NormalPage(line0, &pinVolts[i].now, line1, &pinVolts[i+1].now);
 
       sprintf(line0, "MAX%d", i+1);
       sprintf(line1, "MAX%d", i+2);
-      Page *max = new TwoPage(line0, &pinVolts[i].max, line1, &pinVolts[i+1].max);
+      Page *max = new NormalPage(line0, &pinVolts[i].max, line1, &pinVolts[i+1].max);
 
       sprintf(line0, "MIN%d", i+1);
       sprintf(line1, "MIN%d", i+2);
-      Page *min = new TwoPage(line0, &pinVolts[i].min, line1, &pinVolts[i+1].min);
+      Page *min = new NormalPage(line0, &pinVolts[i].min, line1, &pinVolts[i+1].min);
 
       page->right = max;
       max->right = min;
@@ -189,7 +229,7 @@ void setup() {
       max->left = page;
 
       if(i == 0) {
-         mainPage->down = mainMinMax->down = varMinMax->down = page;
+         mainPage->down = mainMinMax->down = page;
          page->up = max->up = min->up = mainPage;
       } else {
          cellPage->down = page;
@@ -208,17 +248,19 @@ void setup() {
 }
 
 void loop() {
+   // Find all the voltages
    double total = 0;
-   Voltage tally;
+   variation.start();
 
    for(size_t i = 0; i < numPins; i++) {
       pinVolts[i].update();
-      total += pinVolts[i].now;
-      tally.update(pinVolts[i].now);
+      double volt = pinVolts[i].now;
+      total += volt;
+      variation.update(i, volt);
    }
 
    totalVolt.update(total);
-   variation.update(tally.max - tally.min);
+   variation.finish();
 
    // Buttons
    static long lastPrint = 0;
