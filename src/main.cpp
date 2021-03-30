@@ -244,6 +244,9 @@ void setup() {
       cellPage = page;
    }
 
+   cellPage->down = cellPage->left->down = cellPage->right->down = varPage;
+   varPage->up = varMinMax->up = cellPage;
+
    page = mainPage;
 }
 
