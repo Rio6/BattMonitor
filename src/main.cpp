@@ -1,158 +1,11 @@
+#include "voltage.hpp"
+#include "page.hpp"
+
 #include <Arduino.h>
 #include <Adafruit_RGBLCDShield.h>
 #include <string.h>
-#include <math.h>
-
-constexpr double VREF = 5;
 
 Adafruit_RGBLCDShield lcd;
-
-void printDouble(double value, int width, int maxDecimal = -1) {
-   if(maxDecimal < 0) maxDecimal = width - 1;
-
-   int wholeDigits = int(log10(abs(value))) + 1;
-   if(value < 0) wholeDigits += 1;
-
-   char buff[17];
-   lcd.print(dtostrf(value, width, constrain(abs(width) - wholeDigits - 1, 0, maxDecimal), buff));
-}
-
-struct Voltage {
-   double min;
-   double max;
-   double now;
-
-   Voltage() {
-      reset();
-   }
-
-   void reset() {
-      min = INFINITY;
-      max = 0;
-      now = 0;
-   }
-
-   void update(double volt) {
-      now = volt;
-      if(now > max)
-         max = now;
-      if(now < min)
-         min = now;
-   }
-};
-
-struct PinVoltage : Voltage {
-   int pin;
-
-   PinVoltage(int _pin): pin(_pin) {}
-
-   void update() {
-      double volt = (analogRead(pin) + 0.5) / 1024 * VREF;
-      Voltage::update(volt);
-   }
-};
-
-struct CellValue {
-   size_t cell;
-   double value;
-
-   void set(size_t _cell, double _value) {
-      cell = _cell;
-      value = _value;
-   }
-};
-
-struct Variation {
-   CellValue minNow, maxNow;
-   CellValue minMax, maxMax;
-
-   double now, max = 0;
-
-   Variation() {
-      start();
-   }
-
-   void start() {
-      minNow.set(0, INFINITY);
-      maxNow.set(0, 0);
-   }
-
-   void update(size_t cell, double volt) {
-      if(volt < minNow.value) {
-         minNow.set(cell, volt);
-      }
-      if(volt > maxNow.value) {
-         maxNow.set(cell, volt);
-      }
-   }
-
-   void finish() {
-      now = maxNow.value - minNow.value;
-      if(now > max) {
-         max = now;
-         minMax = minNow;
-         maxMax = maxNow;
-      }
-   }
-};
-
-struct Page {
-   Page *up = nullptr, *down = nullptr, *left = nullptr, *right = nullptr;
-   virtual void draw() = 0;
-};
-
-struct NormalPage : Page {
-   char lines[2][9] = {0};
-   const double *values[2];
-
-   NormalPage(const char *line0, const double *value0, const char *line1, const double *value1) {
-      sprintf(lines[0], "%-8.8s", line0);
-      sprintf(lines[1], "%-8.8s", line1);
-      values[0] = value0;
-      values[1] = value1;
-   }
-
-   void draw() {
-      for(size_t i = 0; i < 2; i++) {
-         lcd.setCursor(0, i);
-         lcd.print(lines[i]);
-         printDouble(*values[i], 8, 4);
-      }
-   }
-};
-
-struct VariationPage : Page {
-   Variation *var;
-   bool showMax;
-
-   VariationPage(Variation *_var, bool _showMax) : var(_var), showMax(_showMax) {}
-
-   void draw() {
-      const CellValue &max = showMax ? var->maxMax : var->maxNow;
-      const CellValue &min = showMax ? var->minMax : var->minNow;
-
-      lcd.setCursor(0, 0);
-
-      if(showMax) {
-         lcd.print("MCV     ");
-      } else {
-         lcd.print("VAR     ");
-      }
-
-      printDouble(max.value - min.value, 8, 4);
-
-      lcd.setCursor(0, 1);
-
-      char buff[3];
-      sprintf(buff, "C%d  ", min.cell+1);
-      lcd.print(buff);
-      printDouble(min.value, 4);
-
-      sprintf(buff, " C%d ", max.cell+1);
-      lcd.print(buff);
-      printDouble(max.value, 4);
-   }
-};
 
 constexpr size_t numPins = 8;
 PinVoltage pinVolts[numPins] = {
@@ -168,7 +21,10 @@ PinVoltage pinVolts[numPins] = {
 
 Page *page;
 Voltage totalVolt;
-Variation variation;
+VoltageVariation variation;
+
+constexpr int lightDuration = 5; // seconds
+int lightCounter = lightDuration;
 
 void setup() {
    // NOTE: Call this before any analogRead calls or else VREF pin and internal voltage reference will short
@@ -291,10 +147,20 @@ void loop() {
 
    debounce = buttons;
 
+   if(buttons)
+      lightCounter = lightDuration;
+
    // Print to LCD
    long now = millis();
    if(now - lastPrint > 1000) {
       lastPrint = now;
       page->draw();
+
+      if(lightCounter > 0) {
+         lcd.setBacklight(1);
+         lightCounter--;
+      } else {
+         lcd.setBacklight(0);
+      }
    }
 }
