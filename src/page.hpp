@@ -48,8 +48,8 @@ struct VariationPage : Page {
    VariationPage(VoltageVariation *_var, bool _showMax) : var(_var), showMax(_showMax) {}
 
    void draw() {
-      const CellValue &max = showMax ? var->maxMax : var->maxNow;
-      const CellValue &min = showMax ? var->minMax : var->minNow;
+      const CellValue &max = showMax ? var->maxCellAtMaxVar : var->maxCellNow;
+      const CellValue &min = showMax ? var->minCellAtMaxVar : var->minCellNow;
 
       lcd.setCursor(0, 0);
 

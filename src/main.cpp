@@ -1,5 +1,7 @@
 #include "voltage.hpp"
 #include "page.hpp"
+#include "alert.hpp"
+#include "config.h"
 
 #include <Arduino.h>
 #include <Adafruit_RGBLCDShield.h>
@@ -23,8 +25,11 @@ Page *page;
 Voltage totalVolt;
 VoltageVariation variation;
 
-constexpr int lightDuration = 5; // seconds
-int lightCounter = lightDuration;
+constexpr size_t numAlerts = numPins + 1; // all cells + voltage variation
+Alert *alerts[numAlerts];
+size_t currentAlert = 0;
+
+int lightCounter = BACKLIGHT_DURATION;
 
 void setup() {
    // NOTE: Call this before any analogRead calls or else VREF pin and internal voltage reference will short
@@ -59,6 +64,7 @@ void setup() {
    mainPage->up = varPage;
    mainMinMax->up = varMinMax;
 
+   // Cell voltage pages and alerts
    Page *cellPage = mainPage;
    for(size_t i = 0; i < numPins; i += 2) {
       char line0[6] = {0};
@@ -97,6 +103,9 @@ void setup() {
          min->up = cellPage->left;
       }
 
+      alerts[i] = new VoltageAlert(&pinVolts[i], page);
+      alerts[i+1] = new VoltageAlert(&pinVolts[i+1], page);
+
       cellPage = page;
    }
 
@@ -104,6 +113,9 @@ void setup() {
    varPage->up = varMinMax->up = cellPage;
 
    page = mainPage;
+
+   // Cell variation alert
+   alerts[numPins] = new VariationAlert(&variation, varMinMax);
 }
 
 void loop() {
@@ -121,6 +133,11 @@ void loop() {
    totalVolt.update(total);
    variation.finish();
 
+   // Update alerts
+   for(size_t i = 0; i < numAlerts; i++) {
+      alerts[i]->update();
+   }
+
    // Buttons
    static long lastPrint = 0;
 
@@ -130,16 +147,26 @@ void loop() {
 
    uint8_t buttons = lcd.readButtons();
 
-   if(DEBOUNCE(BUTTON_DOWN) && page->down)
+   if(DEBOUNCE(BUTTON_SELECT)) {
+      for(size_t i = (currentAlert+1) % numAlerts; i != currentAlert; i = (i+1) % numAlerts) {
+         if(alerts[i]->triggered && alerts[i]->alertPage != page) {
+            currentAlert = i;
+            page = alerts[i]->alertPage;
+            break;
+         }
+      }
+   }
+
+   else if(DEBOUNCE(BUTTON_DOWN) && page->down)
       page = page->down;
    
-   if(DEBOUNCE(BUTTON_UP) && page->up)
+   else if(DEBOUNCE(BUTTON_UP) && page->up)
       page = page->up;
    
-   if(DEBOUNCE(BUTTON_LEFT) && page->left)
+   else if(DEBOUNCE(BUTTON_LEFT) && page->left)
       page = page->left;
    
-   if(DEBOUNCE(BUTTON_RIGHT) && page->right)
+   else if(DEBOUNCE(BUTTON_RIGHT) && page->right)
       page = page->right;
    
    if(buttons ^ debounce)
@@ -148,7 +175,7 @@ void loop() {
    debounce = buttons;
 
    if(buttons)
-      lightCounter = lightDuration;
+      lightCounter = BACKLIGHT_DURATION;
 
    // Print to LCD
    long now = millis();

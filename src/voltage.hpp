@@ -52,35 +52,41 @@ struct CellValue {
 };
 
 struct VoltageVariation {
-   CellValue minNow, maxNow;
-   CellValue minMax, maxMax;
+   CellValue minCellNow, maxCellNow;
+   CellValue minCellAtMaxVar, maxCellAtMaxVar;
 
    double now, max = 0;
 
    VoltageVariation() {
+      reset();
       start();
    }
 
+   void reset() {
+      minCellAtMaxVar.set(0, INFINITY);
+      maxCellAtMaxVar.set(0, 0);
+   }
+
    void start() {
-      minNow.set(0, INFINITY);
-      maxNow.set(0, 0);
+      minCellNow.set(0, INFINITY);
+      maxCellNow.set(0, 0);
    }
 
    void update(size_t cell, double volt) {
-      if(volt < minNow.value) {
-         minNow.set(cell, volt);
+      if(volt < minCellNow.value) {
+         minCellNow.set(cell, volt);
       }
-      if(volt > maxNow.value) {
-         maxNow.set(cell, volt);
+      if(volt > maxCellNow.value) {
+         maxCellNow.set(cell, volt);
       }
    }
 
    void finish() {
-      now = maxNow.value - minNow.value;
+      now = maxCellNow.value - minCellNow.value;
       if(now > max) {
          max = now;
-         minMax = minNow;
-         maxMax = maxNow;
+         minCellAtMaxVar = minCellNow;
+         maxCellAtMaxVar = maxCellNow;
       }
    }
 };
