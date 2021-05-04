@@ -9,17 +9,8 @@
 
 Adafruit_RGBLCDShield lcd;
 
-constexpr size_t numPins = 8;
-PinVoltage pinVolts[numPins] = {
-   { A8  },
-   { A9  },
-   { A10 },
-   { A11 },
-   { A12 },
-   { A13 },
-   { A14 },
-   { A15 },
-};
+PinVoltage pinVolts[] = CELL_PINS;
+constexpr size_t numPins = sizeof(pinVolts) / sizeof(pinVolts[0]);
 
 Page *page;
 Voltage totalVolt;
@@ -38,6 +29,9 @@ void setup() {
    lcd.begin(16, 2);
    Serial.begin(9600);
 
+   pinMode(ALERT_PIN_FLASH, OUTPUT);
+   pinMode(ALERT_PIN_CONST, OUTPUT);
+
    // Stablize the input
    for(int i = 0; i < 10; i++) {
       for(size_t i = 0; i < numPins; i++) {
@@ -46,76 +40,55 @@ void setup() {
    }
 
    // Setup menu pages
+
+   // Variation pages
    Page *varPage = new VariationPage(&variation, false);
-   Page *varMinMax = new VariationPage(&variation, true);
+   Page *maxVarPage = new VariationPage(&variation, true);
 
-   varPage->right = varPage->left = varMinMax;
-   varMinMax->right = varMinMax->left = varPage;
+   varPage->right = varPage->left = maxVarPage;
+   maxVarPage->right = maxVarPage->left = varPage;
 
+   // Main page
    Page *mainPage = new NormalPage("TOTAL", &totalVolt.now, "VAR", &variation.now);
    Page *mainMinMax = new NormalPage("MAX", &totalVolt.max, "MIN", &totalVolt.min);
 
+   // Put cell variation pages on top of the main page
    mainPage->right = mainPage->left = mainMinMax;
    mainMinMax->right = mainMinMax->left = mainPage;
 
    varPage->down = mainPage;
-   varMinMax->down = mainMinMax;
+   maxVarPage->down = mainMinMax;
 
    mainPage->up = varPage;
-   mainMinMax->up = varMinMax;
+   mainMinMax->up = maxVarPage;
 
-   // Cell voltage pages and alerts
+   // Cell voltage pages
    Page *cellPage = mainPage;
-   for(size_t i = 0; i < numPins; i += 2) {
-      char line0[6] = {0};
-      char line1[6] = {0};
-
-      sprintf(line0, "CELL%d", i+1);
-      sprintf(line1, "CELL%d", i+2);
-      Page *page = new NormalPage(line0, &pinVolts[i].now, line1, &pinVolts[i+1].now);
-
-      sprintf(line0, "MAX%d", i+1);
-      sprintf(line1, "MAX%d", i+2);
-      Page *max = new NormalPage(line0, &pinVolts[i].max, line1, &pinVolts[i+1].max);
-
-      sprintf(line0, "MIN%d", i+1);
-      sprintf(line1, "MIN%d", i+2);
-      Page *min = new NormalPage(line0, &pinVolts[i].min, line1, &pinVolts[i+1].min);
-
-      page->right = max;
-      max->right = min;
-      min->right = page;
-
-      page->left = min;
-      min->left = max;
-      max->left = page;
+   for(size_t i = 0; i < numPins; i++) {
+      // Cell voltage page
+      Page *page = new VoltagePage(i, &pinVolts[i]);
 
       if(i == 0) {
          mainPage->down = mainMinMax->down = page;
-         page->up = max->up = min->up = mainPage;
+         page->up = mainPage;
       } else {
          cellPage->down = page;
-         cellPage->left->down = min;
-         cellPage->right->down = max;
-
          page->up = cellPage;
-         max->up = cellPage->right;
-         min->up = cellPage->left;
       }
 
-      alerts[i] = new VoltageAlert(&pinVolts[i], page);
-      alerts[i+1] = new VoltageAlert(&pinVolts[i+1], page);
-
       cellPage = page;
+
+      // Cell voltage alert
+      alerts[i] = new VoltageAlert(&pinVolts[i], page);
    }
 
-   cellPage->down = cellPage->left->down = cellPage->right->down = varPage;
-   varPage->up = varMinMax->up = cellPage;
+   cellPage->down = varPage;
+   varPage->up = maxVarPage->up = cellPage;
 
    page = mainPage;
 
    // Cell variation alert
-   alerts[numPins] = new VariationAlert(&variation, varMinMax);
+   alerts[numPins] = new VariationAlert(&variation, maxVarPage);
 }
 
 void loop() {
@@ -134,17 +107,16 @@ void loop() {
    variation.finish();
 
    // Update alerts
+   bool hasAlert = false;
    for(size_t i = 0; i < numAlerts; i++) {
       alerts[i]->update();
+      hasAlert |= alerts[i]->triggered;
    }
 
    // Buttons
-   static long lastPrint = 0;
-
    // Lazy debouncing, returns non-zero when button is first become pressed, zero afterwards
    #define DEBOUNCE(btn) (buttons & (btn) && ~debounce & (btn))
    static uint8_t debounce = 0;
-
    uint8_t buttons = lcd.readButtons();
 
    if(DEBOUNCE(BUTTON_SELECT)) {
@@ -169,6 +141,8 @@ void loop() {
    else if(DEBOUNCE(BUTTON_RIGHT) && page->right)
       page = page->right;
    
+   static long lastPrint = 0;
+
    if(buttons ^ debounce)
       lastPrint = 0;
 
@@ -177,8 +151,24 @@ void loop() {
    if(buttons)
       lightCounter = BACKLIGHT_DURATION;
 
-   // Print to LCD
    long now = millis();
+
+   // Alert flashing
+   if(hasAlert) {
+      if(now % 2000 > 1000) {
+         digitalWrite(ALERT_PIN_FLASH, HIGH);
+         if(lightCounter == 0)
+            lcd.setBacklight(1);
+      } else {
+         digitalWrite(ALERT_PIN_FLASH, LOW);
+         if(lightCounter == 0)
+            lcd.setBacklight(0);
+      }
+   }
+
+   digitalWrite(ALERT_PIN_CONST, hasAlert ? HIGH : LOW);
+
+   // Print to LCD
    if(now - lastPrint > 1000) {
       lastPrint = now;
       page->draw();
@@ -186,8 +176,10 @@ void loop() {
       if(lightCounter > 0) {
          lcd.setBacklight(1);
          lightCounter--;
-      } else {
+      } else if(!hasAlert) {
          lcd.setBacklight(0);
       }
    }
+
+   delay(LOOP_DELAY);
 }

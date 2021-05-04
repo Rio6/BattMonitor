@@ -41,6 +41,27 @@ struct NormalPage : Page {
    }
 };
 
+struct VoltagePage : Page {
+   size_t cellNum;
+   Voltage *volt;
+
+   VoltagePage(size_t _cellNum, Voltage *_volt) : cellNum(_cellNum), volt(_volt) {}
+
+   void draw() {
+      lcd.setCursor(0, 0);
+      lcd.print("CELL");
+      lcd.print(cellNum+1);
+      lcd.print("   ");
+      printDouble(volt->now, 8, 4);
+
+      lcd.setCursor(0, 1);
+      lcd.print("N/X");
+      printDouble(volt->min, 6, 3);
+      lcd.print(" ");
+      printDouble(volt->max, 6, 3);
+   }
+};
+
 struct VariationPage : Page {
    VoltageVariation *var;
    bool showMax;
@@ -52,12 +73,7 @@ struct VariationPage : Page {
       const CellValue &min = showMax ? var->minCellAtMaxVar : var->minCellNow;
 
       lcd.setCursor(0, 0);
-
-      if(showMax) {
-         lcd.print("MCV     ");
-      } else {
-         lcd.print("VAR     ");
-      }
+      lcd.print(showMax ? "MCV     " : "VAR     ");
 
       printDouble(max.value - min.value, 8, 4);
 
