@@ -7,6 +7,7 @@
 
 #define BACKLIGHT_DURATION 15 // in seconds
 #define LOOP_DELAY 50 // in milliseconds
+#define LONG_PRESS_DELAY 2000 // in milliseconds
 
 #define CELL_PINS { \
    { A8  }, \

@@ -113,18 +113,32 @@ void loop() {
       hasAlert |= alerts[i]->triggered;
    }
 
+   long now = millis();
+
    // Buttons
-   // Lazy debouncing, returns non-zero when button is first become pressed, zero afterwards
-   #define DEBOUNCE(btn) (buttons & (btn) && ~debounce & (btn))
+   // Lazy debouncing, returns non-zero when button is pressed and released
+   #define DEBOUNCE(btn) (~buttons & (btn) && debounce & (btn))
    static uint8_t debounce = 0;
    uint8_t buttons = lcd.readButtons();
 
-   if(DEBOUNCE(BUTTON_SELECT)) {
-      for(size_t i = (currentAlert+1) % numAlerts; i != currentAlert; i = (i+1) % numAlerts) {
-         if(alerts[i]->triggered && alerts[i]->alertPage != page) {
-            currentAlert = i;
-            page = alerts[i]->alertPage;
-            break;
+   static long selectBtnPressed = -1;
+   if(buttons & BUTTON_SELECT) {
+      if(~debounce & BUTTON_SELECT) {
+         selectBtnPressed = now;
+      } else if(selectBtnPressed >= 0 && now - selectBtnPressed > LONG_PRESS_DELAY) {
+         alerts[currentAlert]->reset();
+         selectBtnPressed = -1;
+      }
+   }
+
+   else if(debounce & BUTTON_SELECT) {
+      if(selectBtnPressed >= 0) {
+         for(size_t i = (currentAlert+1) % numAlerts; i != currentAlert; i = (i+1) % numAlerts) {
+            if(alerts[i]->triggered && alerts[i]->alertPage != page) {
+               currentAlert = i;
+               page = alerts[i]->alertPage;
+               break;
+            }
          }
       }
    }
@@ -140,18 +154,15 @@ void loop() {
    
    else if(DEBOUNCE(BUTTON_RIGHT) && page->right)
       page = page->right;
-   
-   static long lastPrint = 0;
-
-   if(buttons ^ debounce)
-      lastPrint = 0;
-
-   debounce = buttons;
 
    if(buttons)
       lightCounter = BACKLIGHT_DURATION;
+   
+   static long lastPrint = 0;
+   if(buttons != debounce)
+      lastPrint = 0;
 
-   long now = millis();
+   debounce = buttons;
 
    // Alert flashing
    if(hasAlert) {
