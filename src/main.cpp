@@ -12,6 +12,7 @@ Adafruit_RGBLCDShield lcd;
 PinVoltage pinVolts[] = CELL_PINS;
 constexpr size_t numPins = sizeof(pinVolts) / sizeof(pinVolts[0]);
 
+Page *mainPage;
 Page *page;
 Voltage totalVolt;
 VoltageVariation variation;
@@ -32,8 +33,12 @@ void setup() {
    pinMode(ALERT_PIN_FLASH, OUTPUT);
    pinMode(ALERT_PIN_CONST, OUTPUT);
 
+   for(size_t i = 0; i < numPins; i++) {
+      pinMode(pinVolts[i].pin, INPUT);
+   }
+
    // Stablize the input
-   for(int i = 0; i < 10; i++) {
+   for(int h = 0; h < 10; h++) {
       for(size_t i = 0; i < numPins; i++) {
          pinVolts[i].update();
       }
@@ -49,7 +54,7 @@ void setup() {
    maxVarPage->right = maxVarPage->left = varPage;
 
    // Main page
-   Page *mainPage = new NormalPage("TOTAL", &totalVolt.now, "VAR", &variation.now);
+   mainPage = new NormalPage("TOTAL", &totalVolt.now, "VAR", &variation.now);
    Page *mainMinMax = new NormalPage("MAX", &totalVolt.max, "MIN", &totalVolt.min);
 
    // Put cell variation pages on top of the main page
@@ -117,29 +122,30 @@ void loop() {
 
    // Buttons
    // Lazy debouncing, returns non-zero when button is pressed and released
-   #define DEBOUNCE(btn) (~buttons & (btn) && debounce & (btn))
+   #define DEBOUNCE(btn) (buttons & (btn) && ~debounce & (btn))
    static uint8_t debounce = 0;
    uint8_t buttons = lcd.readButtons();
 
    static long selectBtnPressed = -1;
    if(buttons & BUTTON_SELECT) {
-      if(~debounce & BUTTON_SELECT) {
-         selectBtnPressed = now;
-      } else if(selectBtnPressed >= 0 && now - selectBtnPressed > LONG_PRESS_DELAY) {
-         alerts[currentAlert]->reset();
-         selectBtnPressed = -1;
-      }
-   }
+     if(~debounce & BUTTON_SELECT) {
+        selectBtnPressed = now;
+     } else if(selectBtnPressed >= 0 && now - selectBtnPressed > LONG_PRESS_DELAY) {
+        alerts[currentAlert]->reset();
+        selectBtnPressed = -1;
+     }
 
-   else if(debounce & BUTTON_SELECT) {
-      if(selectBtnPressed >= 0) {
+   } else if(debounce & BUTTON_SELECT && selectBtnPressed >= 0) {
+      if(hasAlert) {
          for(size_t i = (currentAlert+1) % numAlerts; i != currentAlert; i = (i+1) % numAlerts) {
-            if(alerts[i]->triggered && alerts[i]->alertPage != page) {
-               currentAlert = i;
+            if(alerts[i]->triggered) {
                page = alerts[i]->alertPage;
+               currentAlert = i;
                break;
             }
          }
+      } else {
+         page = mainPage;
       }
    }
 

@@ -58,13 +58,11 @@ struct VoltageVariation {
    double now, max = 0;
 
    VoltageVariation() {
-      reset();
       start();
    }
 
    void reset() {
-      minCellAtMaxVar.set(0, INFINITY);
-      maxCellAtMaxVar.set(0, 0);
+      max = 0;
    }
 
    void start() {
