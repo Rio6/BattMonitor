@@ -2,7 +2,9 @@
 #define CONFIG_H
 
 #define MAX_CELL_VOLTAGE 4.6
-#define MIN_CELL_VOLRAGE 3.5
+#define MIN_CELL_VOLTAGE 3.5
+#define MAX_TOTAL_VOLTAGE 37
+#define MIN_TOTAL_VOLTAGE 35
 #define MAX_VOLTAGE_VARIATION 0.5
 
 #define BACKLIGHT_DURATION 15 // in seconds

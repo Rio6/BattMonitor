@@ -16,16 +16,17 @@ struct Alert {
 };
 
 struct VoltageAlert : Alert {
-   double max = MAX_CELL_VOLTAGE;
-   double min = MIN_CELL_VOLRAGE;
-
    Voltage *volt;
 
-   VoltageAlert(Voltage *_volt, Page *_alertPage) : Alert(_alertPage), volt(_volt) {}
+   double minVolt;
+   double maxVolt;
+
+   VoltageAlert(Voltage *_volt, Page *_alertPage, double _minVolt, double _maxVolt)
+      : Alert(_alertPage), volt(_volt), minVolt(_minVolt), maxVolt(_maxVolt) {}
 
    void update() {
       if(triggered || !volt) return;
-      if(volt->max > max || volt->min < min) {
+      if(volt->max > maxVolt || volt->min < minVolt) {
          triggered = true;
       }
    }

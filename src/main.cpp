@@ -17,7 +17,7 @@ Page *page;
 Voltage totalVolt;
 VoltageVariation variation;
 
-constexpr size_t numAlerts = numPins + 1; // all cells + voltage variation
+constexpr size_t numAlerts = numPins + 2; // all cells + total voltage + voltage variation
 Alert *alerts[numAlerts];
 size_t currentAlert = 0;
 
@@ -55,7 +55,7 @@ void setup() {
 
    // Main page
    mainPage = new NormalPage("TOTAL", &totalVolt.now, "VAR", &variation.now);
-   Page *mainMinMax = new NormalPage("MAX", &totalVolt.max, "MIN", &totalVolt.min);
+   Page *mainMinMax = new NormalPage("TOTAL X", &totalVolt.max, "TOTAL N", &totalVolt.min);
 
    // Put cell variation pages on top of the main page
    mainPage->right = mainPage->left = mainMinMax;
@@ -84,7 +84,7 @@ void setup() {
       cellPage = page;
 
       // Cell voltage alert
-      alerts[i] = new VoltageAlert(&pinVolts[i], page);
+      alerts[i] = new VoltageAlert(&pinVolts[i], page, MIN_CELL_VOLTAGE, MAX_CELL_VOLTAGE);
    }
 
    cellPage->down = varPage;
@@ -94,6 +94,9 @@ void setup() {
 
    // Cell variation alert
    alerts[numPins] = new VariationAlert(&variation, maxVarPage);
+
+   // Total voltage alert
+   alerts[numPins+1] = new VoltageAlert(&totalVolt, mainMinMax, MIN_TOTAL_VOLTAGE, MAX_TOTAL_VOLTAGE);
 }
 
 void loop() {
