@@ -9,7 +9,7 @@
 
 #define BACKLIGHT_DURATION 15 // in seconds
 #define LOOP_DELAY 50 // in milliseconds
-#define LONG_PRESS_DELAY 2000 // in milliseconds
+#define LONG_PRESS_DELAY 1500 // in milliseconds
 
 #define CELL_PINS { \
    { A8  }, \
@@ -24,5 +24,9 @@
 
 #define ALERT_PIN_FLASH 13
 #define ALERT_PIN_CONST 22
+
+#define OUTPUT_PIN 24
+#define OUTPUT_THRESHOLD_OFF 30
+#define OUTPUT_THRESHOLD_ON 35
 
 #endif

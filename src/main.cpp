@@ -21,8 +21,6 @@ constexpr size_t numAlerts = numPins + 2; // all cells + total voltage + voltage
 Alert *alerts[numAlerts];
 size_t currentAlert = 0;
 
-int lightCounter = BACKLIGHT_DURATION;
-
 void setup() {
    // NOTE: Call this before any analogRead calls or else VREF pin and internal voltage reference will short
    analogReference(EXTERNAL);
@@ -30,6 +28,7 @@ void setup() {
    lcd.begin(16, 2);
    Serial.begin(9600);
 
+   pinMode(OUTPUT_PIN, OUTPUT);
    pinMode(ALERT_PIN_FLASH, OUTPUT);
    pinMode(ALERT_PIN_CONST, OUTPUT);
 
@@ -154,7 +153,7 @@ void loop() {
 
    else if(DEBOUNCE(BUTTON_DOWN) && page->down)
       page = page->down;
-   
+
    else if(DEBOUNCE(BUTTON_UP) && page->up)
       page = page->up;
    
@@ -164,12 +163,14 @@ void loop() {
    else if(DEBOUNCE(BUTTON_RIGHT) && page->right)
       page = page->right;
 
-   if(buttons)
-      lightCounter = BACKLIGHT_DURATION;
-   
+   static int lightCounter = BACKLIGHT_DURATION;
    static long lastPrint = 0;
+   
    if(buttons != debounce)
       lastPrint = 0;
+
+   if(buttons)
+      lightCounter = BACKLIGHT_DURATION;
 
    debounce = buttons;
 
@@ -186,7 +187,14 @@ void loop() {
       }
    }
 
+   // Outputs control
    digitalWrite(ALERT_PIN_CONST, hasAlert ? HIGH : LOW);
+
+   if(totalVolt.now > OUTPUT_THRESHOLD_ON) {
+      digitalWrite(OUTPUT_PIN, HIGH);
+   } else if(totalVolt.now < OUTPUT_THRESHOLD_OFF) {
+      digitalWrite(OUTPUT_PIN, LOW);
+   }
 
    // Print to LCD
    if(now - lastPrint > 1000) {
