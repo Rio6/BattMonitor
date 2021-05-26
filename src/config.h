@@ -25,8 +25,12 @@
 #define ALERT_PIN_FLASH 13
 #define ALERT_PIN_CONST 22
 
-#define OUTPUT_PIN 24
+#define OUTPUT_PIN 7
 #define OUTPUT_THRESHOLD_OFF 30
 #define OUTPUT_THRESHOLD_ON 35
+
+#define MQTT_ID "yun"
+#define MQTT_USER "controller"
+#define MQTT_PASS "rellortnoc"
 
 #endif

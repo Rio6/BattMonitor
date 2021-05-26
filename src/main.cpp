@@ -1,6 +1,7 @@
 #include "voltage.hpp"
 #include "page.hpp"
 #include "alert.hpp"
+#include "evse.hpp"
 #include "config.h"
 
 #include <Arduino.h>
@@ -42,6 +43,9 @@ void setup() {
          pinVolts[i].update();
       }
    }
+
+   // EVSE Setup
+   evse_setup();
 
    // Setup menu pages
 
@@ -99,6 +103,8 @@ void setup() {
 }
 
 void loop() {
+   evse_loop();
+
    // Find all the voltages
    double total = 0;
    variation.start();
@@ -192,8 +198,10 @@ void loop() {
 
    if(totalVolt.now > OUTPUT_THRESHOLD_ON) {
       digitalWrite(OUTPUT_PIN, HIGH);
+      evse_enable(true);
    } else if(totalVolt.now < OUTPUT_THRESHOLD_OFF) {
       digitalWrite(OUTPUT_PIN, LOW);
+      evse_enable(false);
    }
 
    // Print to LCD
