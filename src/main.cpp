@@ -6,6 +6,7 @@
 
 #include <Arduino.h>
 #include <Adafruit_RGBLCDShield.h>
+#include <Bridge.h>
 #include <string.h>
 
 Adafruit_RGBLCDShield lcd;
@@ -26,8 +27,8 @@ void setup() {
    // NOTE: Call this before any analogRead calls or else VREF pin and internal voltage reference will short
    analogReference(EXTERNAL);
 
+   Bridge.begin();
    lcd.begin(16, 2);
-   Serial.begin(9600);
 
    pinMode(OUTPUT_PIN, OUTPUT);
    pinMode(ALERT_PIN_FLASH, OUTPUT);
@@ -43,9 +44,6 @@ void setup() {
          pinVolts[i].update();
       }
    }
-
-   // EVSE Setup
-   evse_setup();
 
    // Setup menu pages
 
@@ -162,7 +160,7 @@ void loop() {
 
    else if(DEBOUNCE(BUTTON_UP) && page->up)
       page = page->up;
-   
+
    else if(DEBOUNCE(BUTTON_LEFT) && page->left)
       page = page->left;
    

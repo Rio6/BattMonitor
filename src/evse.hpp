@@ -3,7 +3,6 @@
 
 #include "config.h"
 
-#include <Bridge.h>
 #include <BridgeClient.h>
 #include <PubSubClient.h>
 #include <string.h>
@@ -49,11 +48,6 @@ void evse_connect() {
 
 void evse_loop() {
     client.loop();
-    evse_connect();
-}
-
-void evse_setup() {
-    Bridge.begin();
     evse_connect();
 }
 
