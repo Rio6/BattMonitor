@@ -16,13 +16,19 @@ PubSubClient client(server, 1883, callback, net);
 bool last_enable = false;
 
 // more open evse commands https://github.com/OpenEVSE/open_evse/blob/stable/firmware/open_evse/rapi_proc.h
-void evse_enable(bool enable) {
+void evse_enable_raw(bool enable) {
     if(enable) {
         client.publish("openevse/rapi/in/$FE", "");
     } else {
         client.publish("openevse/rapi/in/$FD", "");
     }
     last_enable = enable;
+}
+
+void evse_enable(bool enable) {
+    if(enable != last_enable) {
+        evse_enable_raw(enable);
+    }
 }
 
 void evse_print(const char *msg) {
@@ -34,7 +40,7 @@ void evse_print(const char *msg) {
 void callback(char* topic, byte* payload, unsigned int length) {
     if(strcmp(topic, "openevse") == 0 && strncmp((char*) payload, "connected", length) == 0) {
         evse_print("Connected to Yun");
-        evse_enable(last_enable);
+        evse_enable_raw(last_enable);
     }
 }
 
