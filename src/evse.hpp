@@ -26,24 +26,21 @@ void evse_enable(bool enable, bool ignore_last = false) {
     last_enable = enable;
 }
 
-void evse_print(const char *msg) {
-    char buff[64];
-    snprintf(buff, sizeof(buff), "0 0 %s", msg);
-    client.publish("openevse/rapi/in/$FP", buff);
-}
-
 void callback(char* topic, byte* payload, unsigned int length) {
     if(strcmp(topic, "openevse") == 0 && strncmp((char*) payload, "connected", length) == 0) {
-        evse_print("Connected to Yun");
+        client.publish("openevse/rapi/in/$FP", "0 0 Connected to Yun");
         evse_enable(last_enable);
     }
 }
 
 void evse_connect() {
     static bool connected = false;
-    bool status = client.connect(MQTT_ID, MQTT_USER, MQTT_PASS);
-    if(status && !connected)
+    bool status = client.connect(MQTT_ID, MQTT_USER, MQTT_PASS,
+         "openevse/rapi/in/$FP", 0, false, "0 0 Disconnected from Yun");
+    if(status && !connected) {
         client.subscribe("openevse/#");
+        client.publish("openevse/rapi/in/$FP", "0 0 Connected to Yun");
+    }
     connected = status;
 }
 
