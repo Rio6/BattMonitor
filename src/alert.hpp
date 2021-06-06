@@ -1,3 +1,4 @@
+// Types and behaviours about alerts
 #ifndef ALERT_HPP
 #define ALERT_HPP
 
@@ -5,6 +6,7 @@
 #include "voltage.hpp"
 #include "config.h"
 
+// General alert class, contains an associated page to view and a trigger state
 struct Alert {
    Page *alertPage;
    bool triggered = false;
@@ -15,6 +17,7 @@ struct Alert {
    virtual void reset() = 0;
 };
 
+// Voltage alert, triggers when its voltage os above or below certain level
 struct VoltageAlert : Alert {
    Voltage *volt;
 
@@ -39,6 +42,7 @@ struct VoltageAlert : Alert {
    }
 };
 
+// Variation alert, triggers when its variation is above certain level
 struct VariationAlert : Alert {
    double max = MAX_VOLTAGE_VARIATION;
 

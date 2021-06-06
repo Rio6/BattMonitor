@@ -1,11 +1,13 @@
+// These are some helper structs to keep track of min and max voltage
 #ifndef VOLTAGE_HPP
 #define VOLTAGE_HPP
+
+#include "config.h"
 
 #include <Arduino.h>
 #include <math.h>
 
-constexpr double VREF = 5;
-
+// A voltage class keeps track of max, min, and current value
 struct Voltage {
    double min;
    double max;
@@ -30,6 +32,7 @@ struct Voltage {
    }
 };
 
+// A voltage class that reads voltage from specified pin
 struct PinVoltage : Voltage {
    int pin;
 
@@ -41,6 +44,7 @@ struct PinVoltage : Voltage {
    }
 };
 
+// Helper class for VoltageVariation to keep track of max and min cell
 struct CellValue {
    size_t cell;
    double value;
@@ -51,6 +55,8 @@ struct CellValue {
    }
 };
 
+// Voltage variation class that keeps track of the cell variation, and the
+// cells of when that maximum variation is recorded
 struct VoltageVariation {
    CellValue minCellNow, maxCellNow;
    CellValue minCellAtMaxVar, maxCellAtMaxVar;

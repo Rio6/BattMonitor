@@ -1,3 +1,5 @@
+// Functions to communicate with open evse charger with MQTT and rapi commands
+// more open evse commands https://github.com/OpenEVSE/open_evse/blob/stable/firmware/open_evse/rapi_proc.h
 #ifndef EVSE_HPP
 #define EVSE_HPP
 
@@ -15,7 +17,7 @@ PubSubClient client(server, 1883, callback, net);
 
 bool last_enable = false;
 
-// more open evse commands https://github.com/OpenEVSE/open_evse/blob/stable/firmware/open_evse/rapi_proc.h
+// Send enable/disable command to charger
 void evse_enable(bool enable) {
     if(enable) {
         client.publish("openevse/rapi/in/$FE", "");
@@ -25,24 +27,33 @@ void evse_enable(bool enable) {
     last_enable = enable;
 }
 
+// Called when newly connected to a charger, send and message and the last enable/disable state
+void evse_connected() {
+    client.publish("openevse/rapi/in/$FP", "0 0 Connected to Yun");
+    evse_enable(last_enable);
+}
+
+// Called when recieved a message
 void callback(char* topic, byte* payload, unsigned int length) {
     if(strcmp(topic, "openevse") == 0 && strncmp((char*) payload, "connected", length) == 0) {
-        client.publish("openevse/rapi/in/$FP", "0 0 Connected to Yun");
-        evse_enable(last_enable);
+        evse_connected();
     }
 }
 
+// Check connection status and try reconnect with MQTT when not connected
 void evse_connect() {
     static bool connected = false;
     bool status = client.connect(MQTT_ID, MQTT_USER, MQTT_PASS,
          "openevse/rapi/in/$FP", 0, false, "0 0 Disconnected from Yun");
     if(status && !connected) {
+        // Connected, subscribe to openevse topic
         client.subscribe("openevse/#");
-        client.publish("openevse/rapi/in/$FP", "0 0 Connected to Yun");
+        evse_connected();
     }
     connected = status;
 }
 
+// Call this every loop
 void evse_loop() {
     client.loop();
     evse_connect();

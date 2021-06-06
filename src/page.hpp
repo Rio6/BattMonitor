@@ -1,3 +1,6 @@
+// Different kinds of pages to show on LCD, they're all nodes for linked list
+// whith 4 nodes: up, down, left, right which correspinds to the next page to
+// go to when the navigation buttons are pressed.
 #ifndef PAGE_HPP
 #define PAGE_HPP
 
@@ -6,6 +9,7 @@
 
 extern Adafruit_RGBLCDShield lcd;
 
+// Helper function to print a double to screen
 inline void printDouble(double value, int width, int maxDecimal = -1) {
    if(maxDecimal < 0) maxDecimal = width - 1;
 
@@ -16,11 +20,13 @@ inline void printDouble(double value, int width, int maxDecimal = -1) {
    lcd.print(dtostrf(value, width, constrain(abs(width) - wholeDigits - 1, 0, maxDecimal), buff));
 }
 
+// Base class of a page
 struct Page {
    Page *up = nullptr, *down = nullptr, *left = nullptr, *right = nullptr;
    virtual void draw() = 0;
 };
 
+// Normal page contains 2 lines, each line can display a number
 struct NormalPage : Page {
    char lines[2][9] = {0};
    const double *values[2];
@@ -41,6 +47,7 @@ struct NormalPage : Page {
    }
 };
 
+// Voltage page shows the cell number, current, min, and max values of a voltage object
 struct VoltagePage : Page {
    size_t cellNum;
    Voltage *volt;
@@ -62,6 +69,7 @@ struct VoltagePage : Page {
    }
 };
 
+// Variation page shows the current and max cell voltage variation
 struct VariationPage : Page {
    VoltageVariation *var;
    bool showMax;
