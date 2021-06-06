@@ -9,6 +9,12 @@
 #include <Bridge.h>
 #include <string.h>
 
+enum OutputState {
+   NONE,
+   ON,
+   OFF,
+};
+
 Adafruit_RGBLCDShield lcd;
 
 PinVoltage pinVolts[] = CELL_PINS;
@@ -194,12 +200,19 @@ void loop() {
    // Outputs control
    digitalWrite(ALERT_PIN_CONST, hasAlert ? HIGH : LOW);
 
+   static OutputState out_state = NONE;
    if(totalVolt.now > OUTPUT_THRESHOLD_ON) {
-      digitalWrite(OUTPUT_PIN, HIGH);
-      evse_enable(true);
+      if(out_state != ON) {
+         digitalWrite(OUTPUT_PIN, HIGH);
+         evse_enable(true);
+         out_state = ON;
+      }
    } else if(totalVolt.now < OUTPUT_THRESHOLD_OFF) {
-      digitalWrite(OUTPUT_PIN, LOW);
-      evse_enable(false);
+      if(out_state != OFF) {
+         digitalWrite(OUTPUT_PIN, LOW);
+         evse_enable(false);
+         out_state = OFF;
+      }
    }
 
    // Print to LCD

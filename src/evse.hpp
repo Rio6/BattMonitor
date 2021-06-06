@@ -16,8 +16,7 @@ PubSubClient client(server, 1883, callback, net);
 bool last_enable = false;
 
 // more open evse commands https://github.com/OpenEVSE/open_evse/blob/stable/firmware/open_evse/rapi_proc.h
-void evse_enable(bool enable, bool ignore_last = false) {
-    if(!ignore_last && enable == last_enable) return;
+void evse_enable(bool enable) {
     if(enable) {
         client.publish("openevse/rapi/in/$FE", "");
     } else {
