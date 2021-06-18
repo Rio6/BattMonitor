@@ -38,7 +38,7 @@ Page *page;
 
 void setup() {
    // NOTE: Call this before any analogRead calls or else VREF pin and internal voltage reference will short
-   analogReference(EXTERNAL);
+   //analogReference(EXTERNAL);
 
    Bridge.begin();
    lcd.begin(16, 2);
