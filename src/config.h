@@ -1,6 +1,10 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#define TOTAL_VOLT_PIN A0
+#define TOTAL_VOLT_R1 18
+#define TOTAL_VOLT_R2 3
+
 #define ALERT_PIN_FLASH 13 // A pin that flashes when alert is triggered
 #define ALERT_PIN_CONST 22 // A pin that is on constantly when alert is triggered
 

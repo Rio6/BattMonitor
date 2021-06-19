@@ -7,6 +7,10 @@
 #include <Arduino.h>
 #include <math.h>
 
+static double realTotal(double divided) {
+      return divided * (TOTAL_VOLT_R2 + TOTAL_VOLT_R1) / (TOTAL_VOLT_R2);
+}
+
 // A voltage class keeps track of max, min, and current value
 struct Voltage {
    double min;
@@ -40,6 +44,17 @@ struct PinVoltage : Voltage {
 
    void update() {
       double volt = (analogRead(pin) + 0.5) / 1024 * VREF;
+      Voltage::update(volt);
+   }
+};
+
+struct TotalPinVoltage : Voltage {
+   int pin;
+
+   TotalPinVoltage(int _pin): pin(_pin) {}
+
+   void update() {
+      double volt = realTotal((analogRead(pin) + 0.5) / 1024 * VREF);
       Voltage::update(volt);
    }
 };

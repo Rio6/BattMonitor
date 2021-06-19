@@ -69,6 +69,25 @@ struct VoltagePage : Page {
    }
 };
 
+struct TotalVoltagePage : Page {
+   Voltage *volt;
+
+   TotalVoltagePage(Voltage *_volt) : volt(_volt) {}
+
+   void draw() {
+      lcd.setCursor(0, 0);
+      lcd.print("VOLT");
+      lcd.print("    ");
+      printDouble(volt->now, 8, 4);
+
+      lcd.setCursor(0, 1);
+      lcd.print("N/X");
+      printDouble(volt->min, 6, 3);
+      lcd.print(" ");
+      printDouble(volt->max, 6, 3);
+   }
+};
+
 // Variation page shows the current and max cell voltage variation
 struct VariationPage : Page {
    VoltageVariation *var;
