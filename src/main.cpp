@@ -30,7 +30,7 @@ Page *page;
 
 void setup() {
    // NOTE: Call this before any analogRead calls or else VREF pin and internal voltage reference will short
-   //analogReference(EXTERNAL);
+   analogReference(EXTERNAL);
 
    Bridge.begin();
    lcd.begin(16, 2);
@@ -130,21 +130,27 @@ void loop() {
    // Outputs control
 
    // Saves the current state so MQTT command isn't sent every loop
-   static OutputState out_state = NONE;
+   static OutputState outState = NONE;
+   static long lastOut = 0;
+
+   if(now - lastOut > RESEND_INTERVAL) {
+      outState = NONE;
+      lastOut = now;
+   }
 
    if(totalVolt->now > OUTPUT_THRESHOLD_ON) {
       // Turn on output
-      if(out_state != ON) {
+      if(outState != ON) {
          digitalWrite(OUTPUT_PIN, HIGH);
          evse_enable(true);
-         out_state = ON;
+         outState = ON;
       }
    } else if(totalVolt->now < OUTPUT_THRESHOLD_OFF) {
       // Turn off output
-      if(out_state != OFF) {
+      if(outState != OFF) {
          digitalWrite(OUTPUT_PIN, LOW);
          evse_enable(false);
-         out_state = OFF;
+         outState = OFF;
       }
    }
 

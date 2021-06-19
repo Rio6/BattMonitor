@@ -2,8 +2,8 @@
 #define CONFIG_H
 
 #define TOTAL_VOLT_PIN A0
-#define TOTAL_VOLT_R1 18
-#define TOTAL_VOLT_R2 3
+#define TOTAL_VOLT_R1 17.99
+#define TOTAL_VOLT_R2 2.99
 
 #define ALERT_PIN_FLASH 13 // A pin that flashes when alert is triggered
 #define ALERT_PIN_CONST 22 // A pin that is on constantly when alert is triggered
@@ -23,6 +23,7 @@
 #define BACKLIGHT_DURATION 15000 // Time for the blacklight to stay on after button press, in milliseconds
 #define REFRESH_RATE 1000     // Time between each LCD refresh, in milliseconds
 #define FLASH_RATE 2000       // Time between each flash when alert is triggered, in milliseconds
+#define RESEND_INTERVAL 5000 // Time betweem resending charge command
 
 #define CELL_PINS { \
    { A8  }, \
